@@ -1,20 +1,24 @@
 [package]
-name = "usvg"
-version = "0.48.1"
+name = "katana-usvg"
+version = "0.48.1-katana.1"
 keywords = ["svg"]
 license.workspace = true
 edition = "2024"
 rust-version = "1.85.0"
-description = "An SVG simplification library."
+description = "Katana fork of the SVG simplification library."
 categories = ["multimedia::images"]
-repository = "https://github.com/linebender/resvg"
-documentation = "https://docs.rs/usvg/"
+repository = "https://github.com/HiroyukiFuruno/katana-resvg"
+documentation = "https://docs.rs/katana-usvg/"
 readme = "README.md"
 exclude = ["tests"]
 workspace = "../.."
 
+[lib]
+name = "usvg"
+
 [[bin]]
 name = "usvg"
+path = "src/main.rs"
 required-features = ["svgz", "text", "system-fonts", "memmap-fonts", "writer"]
 
 [dependencies]
@@ -45,6 +49,7 @@ unicode-vo = { version = "0.1", optional = true }
 
 [dev-dependencies]
 once_cell = "1.21"
+ttf-parser = "0.25.1"
 
 [features]
 default = ["svgz", "text", "system-fonts", "memmap-fonts", "writer"]

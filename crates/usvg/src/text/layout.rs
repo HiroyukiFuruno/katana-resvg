@@ -1208,6 +1208,39 @@ pub(crate) trait DatabaseExt {
     fn has_char(&self, id: ID, c: char) -> bool;
 }
 
+// CSSのexは実glyphのx-heightを使い、行組み用の既存fallback metricは変更しない。
+pub(crate) fn css_font_x_height(
+    font: &Font,
+    resolver: &FontResolver<'_>,
+    fontdb: &mut Arc<Database>,
+) -> Option<f32> {
+    let id = (resolver.select_font)(font, fontdb)?;
+    fontdb.with_face_data(id, |data, face_index| {
+        let font_ref = skrifa::FontRef::from_index(data, face_index).ok()?;
+        let location = font_ref.axes().location(
+            font.variations
+                .iter()
+                .map(|variation| (Tag::from_be_bytes(variation.tag), variation.value)),
+        );
+        let metrics = font_ref.metrics(Size::unscaled(), &location);
+        if !(16..=16384).contains(&metrics.units_per_em) {
+            return None;
+        }
+        let x_height = metrics
+            .x_height
+            .filter(|height| height.is_finite() && *height > 0.0)
+            .or_else(|| {
+                let glyph = font_ref.charmap().map('x')?;
+                let bounds = font_ref
+                    .glyph_metrics(Size::unscaled(), &location)
+                    .bounds(glyph)?;
+                let height = bounds.y_max;
+                (height.is_finite() && height > 0.0).then_some(height)
+            })?;
+        Some(x_height / metrics.units_per_em as f32)
+    })?
+}
+
 impl DatabaseExt for Database {
     #[inline(never)]
     fn load_font(&self, id: ID, variations: &[crate::FontVariation]) -> Option<ResolvedFont> {
@@ -1377,7 +1410,13 @@ pub(crate) fn shape_text(
             .unwrap_or_default();
 
             let all_matched = fallback_glyphs.iter().all(|g| !g.is_missing());
-            if all_matched {
+            let same_cluster_boundaries = glyphs.len() == fallback_glyphs.len()
+                && glyphs
+                    .iter()
+                    .zip(&fallback_glyphs)
+                    .all(|(primary, fallback)| primary.byte_idx == fallback.byte_idx);
+            if all_matched && !same_cluster_boundaries {
+                // WHY: 同じbyte境界なら主faceのcluster対応を保ち、異なる場合だけ従来の全置換を使う。
                 // Replace all glyphs when all of them were matched.
                 glyphs = fallback_glyphs;
                 break 'outer;
@@ -1389,12 +1428,13 @@ pub(crate) fn shape_text(
                 break 'outer;
             }
 
-            // TODO: Replace clusters and not glyphs. This should be more accurate.
-
-            // Copy new glyphs.
-            for i in 0..glyphs.len() {
-                if glyphs[i].is_missing() && !fallback_glyphs[i].is_missing() {
-                    glyphs[i] = fallback_glyphs[i].clone();
+            if all_matched && same_cluster_boundaries {
+                replace_missing_clusters(&mut glyphs, &fallback_glyphs);
+            } else {
+                for i in 0..glyphs.len() {
+                    if glyphs[i].is_missing() && !fallback_glyphs[i].is_missing() {
+                        glyphs[i] = fallback_glyphs[i].clone();
+                    }
                 }
             }
 
@@ -1419,6 +1459,21 @@ pub(crate) fn shape_text(
     }
 
     glyphs
+}
+
+fn replace_missing_clusters(glyphs: &mut [Glyph], fallback_glyphs: &[Glyph]) {
+    let mut start = 0;
+    while start < glyphs.len() {
+        let cluster = glyphs[start].byte_idx;
+        let mut end = start + 1;
+        while end < glyphs.len() && glyphs[end].byte_idx == cluster {
+            end += 1;
+        }
+        if glyphs[start..end].iter().any(Glyph::is_missing) {
+            glyphs[start..end].clone_from_slice(&fallback_glyphs[start..end]);
+        }
+        start = end;
+    }
 }
 
 /// Converts a text into a list of glyph IDs.

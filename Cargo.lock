@@ -519,8 +519,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "resvg"
-version = "0.48.1"
+name = "katana-resvg"
+version = "0.48.1-katana.1"
 dependencies = [
  "bytemuck",
  "gif",
@@ -532,7 +532,7 @@ dependencies = [
  "rgb",
  "svgtypes",
  "tiny-skia",
- "usvg",
+ "katana-usvg",
  "zune-jpeg",
 ]
 
@@ -541,7 +541,7 @@ name = "resvg-capi"
 version = "0.48.1"
 dependencies = [
  "log",
- "resvg",
+ "katana-resvg",
 ]
 
 [[package]]
@@ -692,6 +692,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "ttf-parser"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -716,8 +722,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94"
 
 [[package]]
-name = "usvg"
-version = "0.48.1"
+name = "katana-usvg"
+version = "0.48.1-katana.1"
 dependencies = [
  "base64",
  "data-url",
@@ -736,6 +742,7 @@ dependencies = [
  "strict-num",
  "svgtypes",
  "tiny-skia-path",
+ "ttf-parser",
  "unicode-bidi",
  "unicode-script",
  "unicode-vo",

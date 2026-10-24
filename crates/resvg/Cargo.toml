@@ -1,17 +1,22 @@
 [package]
-name = "resvg"
-version = "0.48.1"
+name = "katana-resvg"
+version = "0.48.1-katana.1"
 keywords = ["svg", "render", "raster"]
 license.workspace = true
 edition = "2024"
 rust-version = "1.85.0"
-description = "An SVG rendering library."
-repository = "https://github.com/linebender/resvg"
+description = "Katana fork of the SVG rendering library."
+repository = "https://github.com/HiroyukiFuruno/katana-resvg"
+documentation = "https://docs.rs/katana-resvg/"
 exclude = ["tests"]
 workspace = "../.."
 
+[lib]
+name = "resvg"
+
 [[bin]]
 name = "resvg"
+path = "src/main.rs"
 required-features = ["svgz", "text", "system-fonts", "memmap-fonts"]
 
 [dependencies]
@@ -23,7 +28,7 @@ pico-args = { version = "0.5", features = ["eq-separator"] }
 rgb = "0.8"
 svgtypes = "0.16.1"
 tiny-skia = "0.12.0"
-usvg = { path = "../usvg", version = "0.48.1", default-features = false }
+usvg = { package = "katana-usvg", path = "../usvg", version = "=0.48.1-katana.1", default-features = false }
 zune-jpeg = { version = "0.5.9", optional = true }
 
 [dev-dependencies]
