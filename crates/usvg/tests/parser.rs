@@ -813,6 +813,38 @@ fn root_ex_font_size_uses_options_font_metrics() {
 }
 
 #[test]
+fn ex_font_resolver_keeps_dynamically_loaded_font_for_text_layout() {
+    use std::sync::{Arc, Mutex};
+
+    let amiri_data = include_bytes!("../../resvg/tests/fonts/Amiri-Regular.ttf");
+    let loaded_id = Arc::new(Mutex::new(None));
+    let resolver_id = loaded_id.clone();
+    let mut options = usvg::Options {
+        font_family: "Dynamic Sans".to_string(),
+        font_size: 16.0,
+        ..usvg::Options::default()
+    };
+    options.font_resolver = usvg::FontResolver {
+        select_font: Box::new(move |_font, database| {
+            let mut id = resolver_id.lock().unwrap();
+            if let Some(id) = *id {
+                return Some(id);
+            }
+            Arc::make_mut(database).load_font_data(amiri_data.to_vec());
+            let loaded = database.faces().last().map(|face| face.id)?;
+            *id = Some(loaded);
+            Some(loaded)
+        }),
+        select_fallback: usvg::FontResolver::default_fallback_selector(),
+    };
+
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100' font-family='Dynamic Sans' font-size='4ex'><text x='10' y='80'>x</text></svg>";
+    let tree = usvg::Tree::from_str(svg, &options).unwrap();
+
+    assert!(find_text(tree.root()).is_some());
+}
+
+#[test]
 fn fallback_keeps_primary_font_for_latin_glyphs() {
     let primary_data = include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf");
     let fallback_data = include_bytes!("../../resvg/tests/fonts/MPLUS1p-Regular.ttf");

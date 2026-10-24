@@ -1,8 +1,12 @@
 // Copyright 2018 the Resvg Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+#[cfg(feature = "text")]
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+#[cfg(feature = "text")]
+use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -40,6 +44,8 @@ pub struct State<'a> {
     /// Width and height can be set independently.
     pub(crate) use_size: (Option<f32>, Option<f32>),
     pub(crate) opt: &'a Options<'a>,
+    #[cfg(feature = "text")]
+    pub(crate) fontdb: Rc<RefCell<Arc<Database>>>,
 }
 
 #[derive(Clone)]
@@ -48,6 +54,8 @@ pub struct Cache {
     /// over the course of conversion.
     #[cfg(feature = "text")]
     pub fontdb: Arc<Database>,
+    #[cfg(feature = "text")]
+    pub(crate) shared_fontdb: Rc<RefCell<Arc<Database>>>,
 
     #[cfg(feature = "text")]
     cache_outline: HashMap<(ID, GlyphId, Vec<FontVariation>), Option<tiny_skia_path::Path>>,
@@ -94,10 +102,15 @@ macro_rules! font_lookup {
 }
 
 impl Cache {
-    pub(crate) fn new(#[cfg(feature = "text")] fontdb: Arc<Database>) -> Self {
+    pub(crate) fn new(
+        #[cfg(feature = "text")] fontdb: Arc<Database>,
+        #[cfg(feature = "text")] shared_fontdb: Rc<RefCell<Arc<Database>>>,
+    ) -> Self {
         Self {
             #[cfg(feature = "text")]
             fontdb,
+            #[cfg(feature = "text")]
+            shared_fontdb,
 
             #[cfg(feature = "text")]
             cache_outline: HashMap::new(),
@@ -124,6 +137,16 @@ impl Cache {
             filter_index: 0,
             image_index: 0,
         }
+    }
+
+    #[cfg(feature = "text")]
+    pub(crate) fn sync_fontdb_from_shared(&mut self) {
+        self.fontdb = self.shared_fontdb.borrow().clone();
+    }
+
+    #[cfg(feature = "text")]
+    pub(crate) fn sync_fontdb_to_shared(&mut self) {
+        *self.shared_fontdb.borrow_mut() = self.fontdb.clone();
     }
 
     // TODO: macros?
@@ -423,11 +446,17 @@ pub(crate) fn convert_doc(svg_doc: &svgtree::Document, opt: &Options) -> Result<
         view_box: view_box.rect,
         use_size: (None, None),
         opt,
+        #[cfg(feature = "text")]
+        fontdb: Rc::new(RefCell::new(opt.fontdb.clone())),
     };
 
+    #[cfg(feature = "text")]
+    let shared_fontdb = state.fontdb.clone();
     let mut cache = Cache::new(
         #[cfg(feature = "text")]
         opt.fontdb.clone(),
+        #[cfg(feature = "text")]
+        shared_fontdb,
     );
 
     for node in svg_doc.descendants() {
@@ -529,6 +558,8 @@ fn resolve_svg_size(svg: &SvgNode, opt: &Options) -> (Result<Size, Error>, bool)
         view_box: NonZeroRect::from_xywh(0.0, 0.0, 100.0, 100.0).unwrap(),
         use_size: (None, None),
         opt,
+        #[cfg(feature = "text")]
+        fontdb: Rc::new(RefCell::new(opt.fontdb.clone())),
     };
 
     let def = Length::new(100.0, Unit::Percent);

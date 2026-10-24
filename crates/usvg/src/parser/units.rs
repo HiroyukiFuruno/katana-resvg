@@ -157,7 +157,7 @@ fn resolve_parent_css_ex(node: SvgNode, state: &converter::State, font_size: f32
 #[cfg(feature = "text")]
 fn resolve_css_ex_at_size(node: SvgNode, state: &converter::State, font_size: f32) -> f32 {
     let font = super::text::convert_font(node, state);
-    let mut fontdb = state.opt.fontdb.clone();
+    let mut fontdb = state.fontdb.borrow_mut();
     crate::text::layout::css_font_x_height(&font, &state.opt.font_resolver, &mut fontdb)
         .map(|ratio| ratio * font_size)
         .unwrap_or(font_size / 2.0)
