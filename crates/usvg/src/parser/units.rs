@@ -20,7 +20,16 @@ pub(crate) fn convert_length(
     match length.unit {
         Unit::None | Unit::Px => n,
         Unit::Em => n * resolve_font_size(node, state),
-        Unit::Ex => n * resolve_font_size(node, state) / 2.0,
+        Unit::Ex => {
+            #[cfg(feature = "text")]
+            {
+                n * resolve_css_ex(node, state)
+            }
+            #[cfg(not(feature = "text"))]
+            {
+                n * resolve_font_size(node, state) / 2.0
+            }
+        }
         Unit::In => n * dpi,
         Unit::Cm => n * dpi / 2.54,
         Unit::Mm => n * dpi / 25.4,
@@ -99,20 +108,29 @@ pub(crate) fn resolve_font_size(node: SvgNode, state: &converter::State) -> f32 
         // skip Root
         if let Some(length) = n.try_attribute::<Length>(AId::FontSize) {
             let dpi = state.opt.dpi;
-            let n = length.number as f32;
+            let number = length.number as f32;
             font_size = match length.unit {
-                Unit::None | Unit::Px => n,
-                Unit::Em => n * font_size,
-                Unit::Ex => n * font_size / 2.0,
-                Unit::In => n * dpi,
-                Unit::Cm => n * dpi / 2.54,
-                Unit::Mm => n * dpi / 25.4,
-                Unit::Pt => n * dpi / 72.0,
-                Unit::Pc => n * dpi / 6.0,
+                Unit::None | Unit::Px => number,
+                Unit::Em => number * font_size,
+                Unit::Ex => {
+                    #[cfg(feature = "text")]
+                    {
+                        number * resolve_parent_css_ex(*n, state, font_size)
+                    }
+                    #[cfg(not(feature = "text"))]
+                    {
+                        number * font_size / 2.0
+                    }
+                }
+                Unit::In => number * dpi,
+                Unit::Cm => number * dpi / 2.54,
+                Unit::Mm => number * dpi / 25.4,
+                Unit::Pt => number * dpi / 72.0,
+                Unit::Pc => number * dpi / 6.0,
                 Unit::Percent => {
                     // If `font-size` has percent units that it's value
                     // is relative to the parent node `font-size`.
-                    length.number as f32 * font_size * 0.01
+                    number * font_size * 0.01
                 }
             }
         } else if let Some(name) = n.attribute(AId::FontSize) {
@@ -121,6 +139,28 @@ pub(crate) fn resolve_font_size(node: SvgNode, state: &converter::State) -> f32 
     }
 
     font_size
+}
+
+#[cfg(feature = "text")]
+fn resolve_css_ex(node: SvgNode, state: &converter::State) -> f32 {
+    let font_size = resolve_font_size(node, state);
+    resolve_css_ex_at_size(node, state, font_size)
+}
+
+#[cfg(feature = "text")]
+fn resolve_parent_css_ex(node: SvgNode, state: &converter::State, font_size: f32) -> f32 {
+    node.parent()
+        .map(|parent| resolve_css_ex_at_size(parent, state, font_size))
+        .unwrap_or(font_size / 2.0)
+}
+
+#[cfg(feature = "text")]
+fn resolve_css_ex_at_size(node: SvgNode, state: &converter::State, font_size: f32) -> f32 {
+    let font = super::text::convert_font(node, state);
+    let mut fontdb = state.opt.fontdb.clone();
+    crate::text::layout::css_font_x_height(&font, &state.opt.font_resolver, &mut fontdb)
+        .map(|ratio| ratio * font_size)
+        .unwrap_or(font_size / 2.0)
 }
 
 fn convert_named_font_size(name: &str, parent_font_size: f32) -> f32 {

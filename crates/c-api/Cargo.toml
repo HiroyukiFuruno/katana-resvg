@@ -14,7 +14,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 log = "0.4"
-resvg = { path = "../resvg", default-features = false }
+resvg = { package = "katana-resvg", path = "../resvg", version = "=0.48.1-katana.1", default-features = false }
 
 [features]
 default = ["svgz", "text", "system-fonts", "memmap-fonts", "raster-images"]

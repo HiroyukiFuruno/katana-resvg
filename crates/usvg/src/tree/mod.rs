@@ -985,7 +985,7 @@ impl Node {
         match self {
             Node::Group(group) => Some(group.abs_layer_bounding_box()),
             // Hor/ver path without stroke can return None. This is expected.
-            Node::Path(path) => path.abs_bounding_box().to_non_zero_rect(),
+            Node::Path(path) => path.abs_stroke_bounding_box().to_non_zero_rect(),
             Node::Image(image) => image.abs_bounding_box().to_non_zero_rect(),
             Node::Text(text) => text.abs_bounding_box().to_non_zero_rect(),
         }

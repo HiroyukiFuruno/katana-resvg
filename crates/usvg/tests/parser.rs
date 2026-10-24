@@ -675,3 +675,198 @@ fn nested_svg_abs_bounding_box() {
         Rect::from_xywh(10.0, 20.0, 10.0, 10.0).unwrap()
     );
 }
+
+#[test]
+fn axis_aligned_stroke_has_layer_bounds() {
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>\
+        <path id='horizontal' d='M 10 50 H 90' fill='none' stroke='black' stroke-width='4'/>\
+        <path id='vertical' d='M 50 10 V 90' fill='none' stroke='black' stroke-width='4'/>\
+    </svg>";
+
+    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).unwrap();
+    for id in ["horizontal", "vertical"] {
+        assert!(
+            tree.node_by_id(id)
+                .unwrap()
+                .abs_layer_bounding_box()
+                .is_some()
+        );
+    }
+}
+
+fn find_text(group: &usvg::Group) -> Option<&usvg::Text> {
+    for node in group.children() {
+        match node {
+            usvg::Node::Group(child) => {
+                if let Some(text) = find_text(child) {
+                    return Some(text);
+                }
+            }
+            usvg::Node::Text(text) => {
+                return Some(text);
+            }
+            usvg::Node::Path(_) | usvg::Node::Image(_) => {}
+        }
+    }
+    None
+}
+
+fn first_glyph_font_size(tree: &usvg::Tree) -> f32 {
+    find_text(tree.root())
+        .unwrap()
+        .layouted()
+        .first()
+        .unwrap()
+        .positioned_glyphs
+        .first()
+        .unwrap()
+        .font_size()
+}
+
+fn node_path_width(tree: &usvg::Tree, id: &str) -> f32 {
+    let usvg::Node::Path(path) = tree.node_by_id(id).unwrap() else {
+        unreachable!()
+    };
+    path.bounding_box().width()
+}
+
+fn glyph_font_families(tree: &usvg::Tree) -> Vec<(String, String)> {
+    let text_node = find_text(tree.root()).unwrap();
+    text_node
+        .layouted()
+        .iter()
+        .flat_map(|span| &span.positioned_glyphs)
+        .map(|glyph| {
+            let family = tree
+                .fontdb()
+                .face(glyph.font)
+                .unwrap()
+                .families
+                .first()
+                .unwrap()
+                .0
+                .clone();
+            (glyph.text.clone(), family)
+        })
+        .collect()
+}
+
+fn first_glyph_font_family(tree: &usvg::Tree, text: &str) -> String {
+    glyph_font_families(tree)
+        .into_iter()
+        .find(|(glyph_text, _)| glyph_text == text)
+        .unwrap()
+        .1
+}
+
+fn bundled_noto_options() -> usvg::Options<'static> {
+    let mut options = usvg::Options::default();
+    options.font_family = "Noto Sans".to_string();
+    options.font_size = 16.0;
+    options
+        .fontdb_mut()
+        .load_font_data(include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf").to_vec());
+    options
+}
+
+fn parse_text_with_font_size(font_size: &str) -> usvg::Tree {
+    let svg = format!(
+        "<svg xmlns='http://www.w3.org/2000/svg'><g font-family='Noto Sans' font-size='16px'><text font-size='{font_size}'>x</text><rect id='ex-box' width='4ex' height='1'/></g></svg>"
+    );
+    usvg::Tree::from_str(&svg, &bundled_noto_options()).unwrap()
+}
+
+fn expected_noto_ex_size(multiplier: f32) -> f32 {
+    let font_data = include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf");
+    let face = ttf_parser::Face::parse(font_data, 0).unwrap();
+    multiplier * 16.0 * f32::from(face.x_height().unwrap()) / f32::from(face.units_per_em())
+}
+
+#[test]
+fn ex_font_size_uses_bundled_font_x_height() {
+    let ex_tree = parse_text_with_font_size("4ex");
+    let px_tree = parse_text_with_font_size("16px");
+
+    let expected_size = expected_noto_ex_size(4.0);
+
+    assert!((first_glyph_font_size(&ex_tree) - expected_size).abs() < 0.01);
+    assert!((node_path_width(&ex_tree, "ex-box") - expected_size).abs() < 0.01);
+    assert_eq!(first_glyph_font_size(&px_tree), 16.0);
+    assert_eq!(
+        first_glyph_font_size(&parse_text_with_font_size("1em")),
+        16.0
+    );
+    assert_eq!(
+        first_glyph_font_size(&parse_text_with_font_size("100%")),
+        16.0
+    );
+}
+
+#[test]
+fn root_ex_font_size_uses_options_font_metrics() {
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100' font-family='Noto Sans' font-size='5ex'><text x='10' y='80'>x</text></svg>";
+    let tree = usvg::Tree::from_str(svg, &bundled_noto_options()).unwrap();
+
+    assert!((first_glyph_font_size(&tree) - expected_noto_ex_size(5.0)).abs() < 0.01);
+}
+
+#[test]
+fn fallback_keeps_primary_font_for_latin_glyphs() {
+    let primary_data = include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf");
+    let fallback_data = include_bytes!("../../resvg/tests/fonts/MPLUS1p-Regular.ttf");
+    let primary_face = ttf_parser::Face::parse(primary_data, 0).unwrap();
+    let fallback_face = ttf_parser::Face::parse(fallback_data, 0).unwrap();
+    assert!(primary_face.glyph_index('A').is_some());
+    assert!(primary_face.glyph_index('中').is_none());
+    assert!(fallback_face.glyph_index('中').is_some());
+
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'><text x='10' y='40' font-family='Noto Sans, Mplus 1p'>A中</text></svg>";
+    let mut options = bundled_noto_options();
+    options.fontdb_mut().load_font_data(fallback_data.to_vec());
+    let tree = usvg::Tree::from_str(svg, &options).unwrap();
+
+    assert_eq!(first_glyph_font_family(&tree, "A"), "Noto Sans");
+    assert_eq!(first_glyph_font_family(&tree, "中"), "Mplus 1p");
+}
+
+fn contains_arabic(text: &str) -> bool {
+    text.chars()
+        .any(|character| ('\u{0600}'..='\u{06ff}').contains(&character))
+}
+
+#[test]
+fn rtl_fixture_keeps_latin_primary_and_uses_arabic_fallback() {
+    let noto_data = include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf");
+    let amiri_data = include_bytes!("../../resvg/tests/fonts/Amiri-Regular.ttf");
+    let noto_face = ttf_parser::Face::parse(noto_data, 0).unwrap();
+    let amiri_face = ttf_parser::Face::parse(amiri_data, 0).unwrap();
+    for character in ['S', 'V', 'G'] {
+        assert!(noto_face.glyph_index(character).is_some());
+    }
+    assert!(noto_face.glyph_index('ق').is_none());
+    assert!(amiri_face.glyph_index('S').is_some());
+    assert!(amiri_face.glyph_index('ق').is_some());
+
+    let mut options = bundled_noto_options();
+    options.fontdb_mut().load_font_data(amiri_data.to_vec());
+    let tree = usvg::Tree::from_str(
+        include_str!("../../resvg/tests/tests/text/direction/rtl.svg"),
+        &options,
+    )
+    .unwrap();
+    let glyphs = glyph_font_families(&tree);
+
+    for character in ["S", "V", "G"] {
+        assert!(
+            glyphs
+                .iter()
+                .any(|(text, family)| text.contains(character) && family == "Noto Sans")
+        );
+    }
+    let arabic = glyphs
+        .iter()
+        .filter(|(text, _)| contains_arabic(text))
+        .collect::<Vec<_>>();
+    assert!(!arabic.is_empty());
+    assert!(arabic.iter().all(|(_, family)| family == "Amiri"));
+}

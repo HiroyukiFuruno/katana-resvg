@@ -394,7 +394,7 @@ fn resolve_text_flow(node: SvgNode, state: &converter::State) -> Option<TextFlow
     })))
 }
 
-fn convert_font(node: SvgNode, state: &converter::State) -> Font {
+pub(super) fn convert_font(node: SvgNode, state: &converter::State) -> Font {
     let style: FontStyle = node.find_attribute(AId::FontStyle).unwrap_or_default();
     let stretch = conv_font_stretch(node);
     let weight = resolve_font_weight(node);
