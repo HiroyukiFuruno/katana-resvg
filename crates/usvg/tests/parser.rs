@@ -838,7 +838,7 @@ fn ex_font_resolver_keeps_dynamically_loaded_font_for_text_layout() {
         select_fallback: usvg::FontResolver::default_fallback_selector(),
     };
 
-    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100' font-family='Dynamic Sans' font-size='4ex'><text x='10' y='80'>x</text></svg>";
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='4ex' height='4ex' font-family='Dynamic Sans' font-size='4ex'><text x='10' y='80'>x</text></svg>";
     let tree = usvg::Tree::from_str(svg, &options).unwrap();
 
     assert!(find_text(tree.root()).is_some());

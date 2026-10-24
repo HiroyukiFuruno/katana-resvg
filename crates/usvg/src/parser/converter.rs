@@ -404,7 +404,14 @@ impl SvgColorExt for svgtypes::Color {
 /// - If `Document` doesn't have a valid size - returns `Error::InvalidSize`.
 pub(crate) fn convert_doc(svg_doc: &svgtree::Document, opt: &Options) -> Result<Tree, Error> {
     let svg = svg_doc.root_element();
-    let (size, restore_viewbox) = resolve_svg_size(&svg, opt);
+    #[cfg(feature = "text")]
+    let shared_fontdb = Rc::new(RefCell::new(opt.fontdb.clone()));
+    let (size, restore_viewbox) = resolve_svg_size(
+        &svg,
+        opt,
+        #[cfg(feature = "text")]
+        shared_fontdb.clone(),
+    );
     let size = size?;
     let view_box = ViewBox {
         rect: svg
@@ -447,7 +454,7 @@ pub(crate) fn convert_doc(svg_doc: &svgtree::Document, opt: &Options) -> Result<
         use_size: (None, None),
         opt,
         #[cfg(feature = "text")]
-        fontdb: Rc::new(RefCell::new(opt.fontdb.clone())),
+        fontdb: shared_fontdb.clone(),
     };
 
     #[cfg(feature = "text")]
@@ -549,7 +556,11 @@ fn background_path(background_color: svgtypes::Color, area: Rect) -> Option<Path
     Some(path)
 }
 
-fn resolve_svg_size(svg: &SvgNode, opt: &Options) -> (Result<Size, Error>, bool) {
+fn resolve_svg_size(
+    svg: &SvgNode,
+    opt: &Options,
+    #[cfg(feature = "text")] shared_fontdb: Rc<RefCell<Arc<Database>>>,
+) -> (Result<Size, Error>, bool) {
     let mut state = State {
         parent_clip_path: None,
         context_element: None,
@@ -559,7 +570,7 @@ fn resolve_svg_size(svg: &SvgNode, opt: &Options) -> (Result<Size, Error>, bool)
         use_size: (None, None),
         opt,
         #[cfg(feature = "text")]
-        fontdb: Rc::new(RefCell::new(opt.fontdb.clone())),
+        fontdb: shared_fontdb,
     };
 
     let def = Length::new(100.0, Unit::Percent);
