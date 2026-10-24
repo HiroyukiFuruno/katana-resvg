@@ -1428,12 +1428,13 @@ pub(crate) fn shape_text(
                 break 'outer;
             }
 
-            // TODO: Replace clusters and not glyphs. This should be more accurate.
-
-            // Copy new glyphs.
-            for i in 0..glyphs.len() {
-                if glyphs[i].is_missing() && !fallback_glyphs[i].is_missing() {
-                    glyphs[i] = fallback_glyphs[i].clone();
+            if all_matched && same_cluster_boundaries {
+                replace_missing_clusters(&mut glyphs, &fallback_glyphs);
+            } else {
+                for i in 0..glyphs.len() {
+                    if glyphs[i].is_missing() && !fallback_glyphs[i].is_missing() {
+                        glyphs[i] = fallback_glyphs[i].clone();
+                    }
                 }
             }
 
@@ -1458,6 +1459,21 @@ pub(crate) fn shape_text(
     }
 
     glyphs
+}
+
+fn replace_missing_clusters(glyphs: &mut [Glyph], fallback_glyphs: &[Glyph]) {
+    let mut start = 0;
+    while start < glyphs.len() {
+        let cluster = glyphs[start].byte_idx;
+        let mut end = start + 1;
+        while end < glyphs.len() && glyphs[end].byte_idx == cluster {
+            end += 1;
+        }
+        if glyphs[start..end].iter().any(Glyph::is_missing) {
+            glyphs[start..end].clone_from_slice(&fallback_glyphs[start..end]);
+        }
+        start = end;
+    }
 }
 
 /// Converts a text into a list of glyph IDs.

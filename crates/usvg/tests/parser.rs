@@ -848,12 +848,7 @@ fn fallback_keeps_combining_cluster_in_one_font() {
     let tree = usvg::Tree::from_str(svg, &options).unwrap();
     let glyphs = glyph_font_families(&tree);
     assert!(!glyphs.is_empty());
-    assert!(
-        glyphs
-            .iter()
-            .filter(|(text, _)| !text.is_empty())
-            .all(|(_, family)| family == "Amiri")
-    );
+    assert!(glyphs.iter().all(|(_, family)| family == "Amiri"));
 }
 
 fn contains_arabic(text: &str) -> bool {
