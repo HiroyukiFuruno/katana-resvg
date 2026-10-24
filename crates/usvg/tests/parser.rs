@@ -760,9 +760,11 @@ fn first_glyph_font_family(tree: &usvg::Tree, text: &str) -> String {
 }
 
 fn bundled_noto_options() -> usvg::Options<'static> {
-    let mut options = usvg::Options::default();
-    options.font_family = "Noto Sans".to_string();
-    options.font_size = 16.0;
+    let mut options = usvg::Options {
+        font_family: "Noto Sans".to_string(),
+        font_size: 16.0,
+        ..usvg::Options::default()
+    };
     options
         .fontdb_mut()
         .load_font_data(include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf").to_vec());
@@ -827,6 +829,31 @@ fn fallback_keeps_primary_font_for_latin_glyphs() {
 
     assert_eq!(first_glyph_font_family(&tree, "A"), "Noto Sans");
     assert_eq!(first_glyph_font_family(&tree, "中"), "Mplus 1p");
+}
+
+#[test]
+fn fallback_keeps_combining_cluster_in_one_font() {
+    let primary_data = include_bytes!("../../resvg/tests/fonts/NotoSans-Regular.ttf");
+    let fallback_data = include_bytes!("../../resvg/tests/fonts/Amiri-Regular.ttf");
+    let primary_face = ttf_parser::Face::parse(primary_data, 0).unwrap();
+    let fallback_face = ttf_parser::Face::parse(fallback_data, 0).unwrap();
+    assert!(primary_face.glyph_index('A').is_some());
+    assert!(primary_face.glyph_index('\u{0651}').is_none());
+    assert!(fallback_face.glyph_index('A').is_some());
+    assert!(fallback_face.glyph_index('\u{0651}').is_some());
+
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'><text x='10' y='50' font-family='Noto Sans, Amiri'>A\u{0651}</text></svg>";
+    let mut options = bundled_noto_options();
+    options.fontdb_mut().load_font_data(fallback_data.to_vec());
+    let tree = usvg::Tree::from_str(svg, &options).unwrap();
+    let glyphs = glyph_font_families(&tree);
+    assert!(!glyphs.is_empty());
+    assert!(
+        glyphs
+            .iter()
+            .filter(|(text, _)| !text.is_empty())
+            .all(|(_, family)| family == "Amiri")
+    );
 }
 
 fn contains_arabic(text: &str) -> bool {

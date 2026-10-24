@@ -1234,7 +1234,7 @@ pub(crate) fn css_font_x_height(
                 let bounds = font_ref
                     .glyph_metrics(Size::unscaled(), &location)
                     .bounds(glyph)?;
-                let height = bounds.y_max as f32;
+                let height = bounds.y_max;
                 (height.is_finite() && height > 0.0).then_some(height)
             })?;
         Some(x_height / metrics.units_per_em as f32)
