@@ -1,6 +1,6 @@
 [package]
 name = "resvg-capi"
-version = "0.48.1"
+version = "0.49.0"
 keywords = ["svg", "render", "raster", "c-api"]
 license.workspace = true
 edition = "2024"
@@ -14,7 +14,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 log = "0.4"
-resvg = { package = "katana-resvg", path = "../resvg", version = "=0.48.1-katana.1", default-features = false }
+resvg = { package = "katana-resvg", path = "../resvg", version = "=0.49.0-katana.1", default-features = false }
 
 [features]
 default = ["svgz", "text", "system-fonts", "memmap-fonts", "raster-images"]
@@ -34,4 +34,4 @@ capi = []
 generation = false
 
 [package.metadata.capi.install.include]
-asset = [{ from="resvg.h" }]
+asset = [{ from="resvg.h" }, { from="ResvgQt.h" }]
